@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "hekuos_guard",
+  "version": "${version}",
+  "name": "hekuo's guard",
+  "description": "A conservative server-side anti-cheat for technical Minecraft servers.",
+  "authors": ["hekuo"],
+  "contact": {},
+  "license": "Apache-2.0",
+  "environment": "server",
+  "entrypoints": {
+    "main": ["dev.hekuo.guard.HekuosGuard"]
+  },
+  "mixins": ["hekuos_guard.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.18.5",
+    "fabric-api": "*",
+    "minecraft": "1.21.1",
+    "java": ">=21"
+  }
+}
