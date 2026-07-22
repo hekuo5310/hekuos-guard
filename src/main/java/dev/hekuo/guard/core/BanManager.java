@@ -51,16 +51,16 @@ final class BanManager {
 
     synchronized BanRecord active(UUID uuid) {
         BanRecord record = bans.get(uuid);
-        if (record != null && record.active && record.expiresAt != 0L && record.expiresAt <= Instant.now().toEpochMilli()) {
+        if (record != null && isActive(record) && record.expiresAt != 0L && record.expiresAt <= Instant.now().toEpochMilli()) {
             record.active = false;
             save();
         }
-        return record != null && record.active ? record : null;
+        return record != null && isActive(record) ? record : null;
     }
 
     synchronized boolean unban(UUID uuid) {
         BanRecord record = bans.get(uuid);
-        if (record == null || !record.active) return false;
+        if (record == null || !isActive(record)) return false;
         // Keep the level as disciplinary history: an admin lift must not reset escalation.
         record.active = false;
         save();
@@ -95,7 +95,7 @@ final class BanManager {
         boolean changed = false;
         long now = Instant.now().toEpochMilli();
         for (BanRecord record : bans.values()) {
-            if (record.active && record.expiresAt != 0L && record.expiresAt <= now) {
+            if (isActive(record) && record.expiresAt != 0L && record.expiresAt <= now) {
                 record.active = false;
                 changed = true;
             }
@@ -110,6 +110,7 @@ final class BanManager {
             Files.writeString(path, GSON.toJson(store), StandardCharsets.UTF_8);
         } catch (IOException exception) { HekuosGuard.LOGGER.error("Unable to save hekuo's guard bans", exception); }
     }
+    private static boolean isActive(BanRecord record) { return record.active == null || record.active; }
 
     static final class Store { BanRecord[] bans = new BanRecord[0]; }
     static final class BanRecord {
@@ -118,7 +119,8 @@ final class BanManager {
         int level;
         long expiresAt; // 0 is permanent
         long bannedAt;
-        boolean active = true;
+        // Nullable for backward compatibility: old records did not have this field and are active.
+        Boolean active = true;
         BanRecord(UUID uuid, String player, int level, long expiresAt, long bannedAt) { this.uuid = uuid; this.player = player; this.level = level; this.expiresAt = expiresAt; this.bannedAt = bannedAt; }
     }
     private static String formatDuration(long millis) {
