@@ -76,6 +76,18 @@ final class BanManager {
         return uuid != null && unban(uuid);
     }
 
+    synchronized boolean forceUnbanByPlayerName(String playerName) {
+        UUID uuid = bans.values().stream()
+                .filter(record -> record.player != null && record.player.equalsIgnoreCase(playerName))
+                .map(record -> record.uuid)
+                .findFirst()
+                .orElse(null);
+        if (uuid == null) return false;
+        bans.remove(uuid);
+        save();
+        return true;
+    }
+
     Text message(BanRecord record) { return Text.literal(messageText(record)); }
 
     String messageText(BanRecord record) {

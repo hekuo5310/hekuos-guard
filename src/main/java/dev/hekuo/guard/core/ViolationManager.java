@@ -143,6 +143,7 @@ public final class ViolationManager {
     public int score(ServerPlayerEntity player) { return state(player).totalScore(); }
     public boolean toggleAlerts(ServerPlayerEntity player) { return alertSubscribers.remove(player.getUuid()) ? false : alertSubscribers.add(player.getUuid()); }
     public boolean unbanByPlayerName(String playerName) { return bans.unbanByPlayerName(playerName); }
+    public boolean forceUnbanByPlayerName(String playerName) { return bans.forceUnbanByPlayerName(playerName); }
 
     private PlayerState state(ServerPlayerEntity player) {
         return states.computeIfAbsent(player.getUuid(), ignored -> new PlayerState(player.getUuid(), player.getPos(), tick, System.nanoTime(),

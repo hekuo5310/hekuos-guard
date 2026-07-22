@@ -26,7 +26,7 @@ public final class GuardCommands {
                 .then(CommandManager.literal("exempt")
                         .then(CommandManager.argument("player", EntityArgumentType.player())
                                 .then(CommandManager.argument("seconds", IntegerArgumentType.integer(1)).executes(GuardCommands::exempt))))
-                .then(CommandManager.literal("unban").then(CommandManager.argument("player", StringArgumentType.word()).executes(GuardCommands::unban)));
+                .then(unbanCommand());
         dispatcher.register(root);
         dispatcher.register(CommandManager.literal("hg").requires(source -> source.hasPermissionLevel(3))
                 .then(CommandManager.literal("reload").executes(GuardCommands::reload))
@@ -34,7 +34,7 @@ public final class GuardCommands {
                 .then(CommandManager.literal("status").then(CommandManager.argument("player", EntityArgumentType.player()).executes(GuardCommands::status)))
                 .then(CommandManager.literal("reset").then(CommandManager.argument("player", EntityArgumentType.player()).executes(GuardCommands::reset)))
                 .then(CommandManager.literal("exempt").then(CommandManager.argument("player", EntityArgumentType.player()).then(CommandManager.argument("seconds", IntegerArgumentType.integer(1)).executes(GuardCommands::exempt))))
-                .then(CommandManager.literal("unban").then(CommandManager.argument("player", StringArgumentType.word()).executes(GuardCommands::unban))));
+                .then(unbanCommand()));
     }
 
     private static int reload(CommandContext<ServerCommandSource> context) {
@@ -77,6 +77,18 @@ public final class GuardCommands {
         String playerName = StringArgumentType.getString(context, "player");
         boolean removed = HekuosGuard.violations().unbanByPlayerName(playerName);
         context.getSource().sendFeedback(() -> Text.literal("[HG] " + (removed ? "unbanned " : "no active ban for ") + playerName), true);
+        return removed ? 1 : 0;
+    }
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<ServerCommandSource> unbanCommand() {
+        return CommandManager.literal("unban")
+                .then(CommandManager.argument("player", StringArgumentType.word())
+                        .executes(GuardCommands::unban)
+                        .then(CommandManager.literal("--force").executes(GuardCommands::forceUnban)));
+    }
+    private static int forceUnban(CommandContext<ServerCommandSource> context) {
+        String playerName = StringArgumentType.getString(context, "player");
+        boolean removed = HekuosGuard.violations().forceUnbanByPlayerName(playerName);
+        context.getSource().sendFeedback(() -> Text.literal("[HG] " + (removed ? "force-unbanned and cleared history for " : "no ban history for ") + playerName), true);
         return removed ? 1 : 0;
     }
 }
