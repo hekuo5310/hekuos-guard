@@ -31,7 +31,7 @@ final class BanManager {
             if (store != null && store.bans != null) {
                 bans.clear();
                 for (BanRecord record : store.bans) bans.put(record.uuid, record);
-                removeExpired();
+                expireActiveBans();
             }
         } catch (IOException exception) {
             HekuosGuard.LOGGER.error("Unable to load hekuo's guard bans", exception);
@@ -39,7 +39,7 @@ final class BanManager {
     }
 
     synchronized BanRecord ban(ServerPlayerEntity player, int speedLevel, GuardConfig.Enforcement settings) {
-        removeExpired();
+        expireActiveBans();
         BanRecord previous = bans.get(player.getUuid());
         int level = Math.max(1, (previous == null ? 0 : previous.level) + speedLevel);
         long expiresAt = level >= settings.permanentBanLevel ? 0L : Instant.now().plusSeconds(durationSeconds(level, settings)).toEpochMilli();
@@ -51,18 +51,20 @@ final class BanManager {
 
     synchronized BanRecord active(UUID uuid) {
         BanRecord record = bans.get(uuid);
-        if (record != null && record.expiresAt != 0L && record.expiresAt <= Instant.now().toEpochMilli()) {
-            bans.remove(uuid);
+        if (record != null && record.active && record.expiresAt != 0L && record.expiresAt <= Instant.now().toEpochMilli()) {
+            record.active = false;
             save();
-            return null;
         }
-        return record;
+        return record != null && record.active ? record : null;
     }
 
     synchronized boolean unban(UUID uuid) {
-        boolean removed = bans.remove(uuid) != null;
-        if (removed) save();
-        return removed;
+        BanRecord record = bans.get(uuid);
+        if (record == null || !record.active) return false;
+        // Keep the level as disciplinary history: an admin lift must not reset escalation.
+        record.active = false;
+        save();
+        return true;
     }
 
     synchronized boolean unbanByPlayerName(String playerName) {
@@ -89,8 +91,16 @@ final class BanManager {
         return Math.multiplyExact(settings.banBaseSeconds, multiplier);
     }
 
-    private void removeExpired() {
-        if (bans.values().removeIf(record -> record.expiresAt != 0L && record.expiresAt <= Instant.now().toEpochMilli())) save();
+    private void expireActiveBans() {
+        boolean changed = false;
+        long now = Instant.now().toEpochMilli();
+        for (BanRecord record : bans.values()) {
+            if (record.active && record.expiresAt != 0L && record.expiresAt <= now) {
+                record.active = false;
+                changed = true;
+            }
+        }
+        if (changed) save();
     }
     private void save() {
         try {
@@ -108,6 +118,7 @@ final class BanManager {
         int level;
         long expiresAt; // 0 is permanent
         long bannedAt;
+        boolean active = true;
         BanRecord(UUID uuid, String player, int level, long expiresAt, long bannedAt) { this.uuid = uuid; this.player = player; this.level = level; this.expiresAt = expiresAt; this.bannedAt = bannedAt; }
     }
     private static String formatDuration(long millis) {
