@@ -121,12 +121,3 @@ gradle build --no-daemon
 ```
 
 构建产物位于 `build/libs/`。推送到 `main` 会由 GitHub Actions 生成滚动预发布；推送 `v*` 标签会生成对应的正式 Release。
-
-## Modrinth 自动发布
-
-正式标签（例如 `v1.0.4`）会在 GitHub Release 构建完成后自动发布到 Modrinth。首次启用前，请在 GitHub 仓库的 **Settings → Secrets and variables → Actions** 中配置：
-
-- Repository variable `MODRINTH_PROJECT_ID`：Modrinth 项目 ID（不是项目名称）；
-- Repository secret `MODRINTH_TOKEN`：具有创建版本权限的 Modrinth Personal Access Token。
-
-未设置 `MODRINTH_PROJECT_ID` 时，工作流会跳过 Modrinth 步骤，不会影响 GitHub Release 或预发布构建。Modrinth 仅发布正式 `v*` 标签，不会发布 `main` 的滚动预发布。
