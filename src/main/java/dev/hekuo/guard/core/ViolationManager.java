@@ -2,6 +2,10 @@ package dev.hekuo.guard.core;
 
 import dev.hekuo.guard.HekuosGuard;
 import dev.hekuo.guard.config.GuardConfig;
+import dev.hekuo.guard.network.SecureChallengePayload;
+import dev.hekuo.guard.network.SecureResponsePayload;
+import dev.hekuo.guard.security.SecureHandshake;
+import dev.hekuo.guard.security.ServerIdentity;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.effect.StatusEffects;
@@ -26,6 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.security.KeyPair;
 
 /** Coordinates all checks; it deliberately has no block-breaking or placement checks. */
 public final class ViolationManager {
@@ -34,12 +41,22 @@ public final class ViolationManager {
     private final Set<UUID> alertSubscribers = new HashSet<>();
     private final AuditLogger audit = new AuditLogger();
     private final BanManager bans = new BanManager();
+    private final ServerIdentity serverIdentity = new ServerIdentity();
+    private final Map<UUID, PendingHandshake> pendingHandshakes = new HashMap<>();
     private MinecraftServer server;
     private long tick;
 
     public ViolationManager(GuardConfig config) { this.config = config; }
-    public void start(MinecraftServer value) { server = value; bans.load(); }
-    public void stop() { states.clear(); alertSubscribers.clear(); server = null; }
+    public void start(MinecraftServer value) {
+        server = value;
+        bans.load();
+        try {
+            serverIdentity.loadOrCreate();
+        } catch (IOException | GeneralSecurityException exception) {
+            HekuosGuard.LOGGER.error("Unable to load persistent secure-handshake identity; secure handshakes will be rejected", exception);
+        }
+    }
+    public void stop() { states.clear(); alertSubscribers.clear(); pendingHandshakes.clear(); server = null; }
 
     public void join(ServerPlayerEntity player) {
         BanManager.BanRecord record = bans.active(player.getUuid());
@@ -54,16 +71,30 @@ public final class ViolationManager {
             player.networkHandler.disconnect(Text.literal("此服务器要求安装 hekuo's guard 客户端 Mod 才能进入。"));
             return;
         }
+        if (detection.secureHandshake.enabled
+                && !ServerPlayNetworking.canSend(player, SecureChallengePayload.ID)) {
+            HekuosGuard.LOGGER.info("Rejected {} because the required secure handshake client companion is unavailable", player.getGameProfile().getName());
+            player.networkHandler.disconnect(Text.literal("此服务器要求安装支持安全握手的 hekuo's guard 客户端 Mod 才能进入。"));
+            return;
+        }
         PlayerState state = state(player);
         state.exemptUntilTick = Math.max(state.exemptUntilTick, tick + config.get().movement.joinGraceSeconds * 20L);
         sendClientRules(player);
+        beginSecureHandshake(player);
     }
-    public void leave(ServerPlayerEntity player) { states.remove(player.getUuid()); alertSubscribers.remove(player.getUuid()); }
+    public void leave(ServerPlayerEntity player) { states.remove(player.getUuid()); alertSubscribers.remove(player.getUuid()); pendingHandshakes.remove(player.getUuid()); }
     public long tickCount() { return tick; }
 
     public void tick(MinecraftServer ignored) {
         tick++;
         for (ServerPlayerEntity player : ignored.getPlayerManager().getPlayerList()) {
+            PendingHandshake pending = pendingHandshakes.get(player.getUuid());
+            if (pending != null && tick > pending.deadlineTick()) {
+                pendingHandshakes.remove(player.getUuid());
+                HekuosGuard.LOGGER.info("Rejected {} after secure handshake timeout", player.getGameProfile().getName());
+                player.networkHandler.disconnect(Text.literal("hekuo's guard 安全握手超时。"));
+                continue;
+            }
             PlayerState state = state(player);
             Vec3d position = player.getPos();
             checkWaterWalk(player, state);
@@ -160,6 +191,43 @@ public final class ViolationManager {
     }
     public void sendClientRulesToAll() {
         if (server != null) for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) sendClientRules(player);
+    }
+    private void beginSecureHandshake(ServerPlayerEntity player) {
+        if (!config.get().clientDetection.secureHandshake.enabled) return;
+        try {
+            KeyPair signing = serverIdentity.loadOrCreate();
+            KeyPair agreement = SecureHandshake.x25519KeyPair();
+            byte[] nonce = SecureHandshake.nonce();
+            byte[] agreementKey = agreement.getPublic().getEncoded();
+            byte[] signature = SecureHandshake.sign(signing.getPrivate(), SecureHandshake.challengeMessage(nonce, agreementKey));
+            pendingHandshakes.put(player.getUuid(), new PendingHandshake(nonce, agreement.getPrivate(), agreementKey,
+                    tick + config.get().clientDetection.secureHandshake.timeoutSeconds * 20L));
+            ServerPlayNetworking.send(player, new SecureChallengePayload(signing.getPublic().getEncoded(), agreementKey, nonce, signature));
+        } catch (IOException | GeneralSecurityException exception) {
+            HekuosGuard.LOGGER.error("Could not start secure handshake for {}", player.getGameProfile().getName(), exception);
+            player.networkHandler.disconnect(Text.literal("服务器无法建立 hekuo's guard 安全握手。"));
+        }
+    }
+    public void handleSecureResponse(ServerPlayerEntity player, SecureResponsePayload response) {
+        PendingHandshake pending = pendingHandshakes.remove(player.getUuid());
+        if (pending == null || !config.get().clientDetection.secureHandshake.enabled) return;
+        try {
+            byte[] plaintext = SecureHandshake.decrypt(pending.agreementPrivate(), response.agreementKey(), pending.nonce(), response.iv(), response.ciphertext());
+            SecureHandshake.Integrity integrity = SecureHandshake.decodeIntegrity(plaintext);
+            byte[] signed = SecureHandshake.proofMessage(pending.nonce(), pending.agreementPublic(), response.agreementKey(), integrity.integrityHash());
+            if (!SecureHandshake.verify(integrity.clientSigningKey(), signed, integrity.signature())) throw new GeneralSecurityException("invalid client proof signature");
+            String fingerprint = SecureHandshake.hex(integrity.integrityHash());
+            GuardConfig.SecureHandshake settings = config.get().clientDetection.secureHandshake;
+            if (settings.requireKnownIntegrity && settings.allowedClientSha256.stream().noneMatch(hash -> hash.equalsIgnoreCase(fingerprint))) {
+                HekuosGuard.LOGGER.info("Rejected {} with unknown client integrity fingerprint {}", player.getGameProfile().getName(), fingerprint);
+                player.networkHandler.disconnect(Text.literal("hekuo's guard 客户端完整性校验未通过。"));
+                return;
+            }
+            HekuosGuard.LOGGER.info("Secure handshake accepted for {} (client SHA-256: {})", player.getGameProfile().getName(), fingerprint);
+        } catch (GeneralSecurityException | IllegalArgumentException exception) {
+            HekuosGuard.LOGGER.info("Rejected {} after invalid secure handshake: {}", player.getGameProfile().getName(), exception.getMessage());
+            player.networkHandler.disconnect(Text.literal("hekuo's guard 安全握手校验失败。"));
+        }
     }
     public void handleClientModReport(ServerPlayerEntity player, String modId) {
         GuardConfig.ClientDetection detection = config.get().clientDetection;
@@ -263,4 +331,5 @@ public final class ViolationManager {
     private static Vec3d closest(Box box, Vec3d point) {
         return new Vec3d(Math.clamp(point.x, box.minX, box.maxX), Math.clamp(point.y, box.minY, box.maxY), Math.clamp(point.z, box.minZ, box.maxZ));
     }
+    private record PendingHandshake(byte[] nonce, java.security.PrivateKey agreementPrivate, byte[] agreementPublic, long deadlineTick) { }
 }

@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /** Mutable, atomically replaced JSON configuration. */
 public final class GuardConfig {
@@ -52,11 +53,15 @@ public final class GuardConfig {
         public ClientDetection clientDetection = new ClientDetection();
 
         void validate() throws IOException {
-            if (movement == null || combat == null || packets == null || enforcement == null || logging == null || clientDetection == null) throw new IOException("missing configuration section");
+            if (movement == null || combat == null || packets == null || enforcement == null || logging == null || clientDetection == null || clientDetection.secureHandshake == null) throw new IOException("missing configuration section");
             if (movement.maxHorizontalPerTick <= 0 || movement.maxVerticalPerTick <= 0 || movement.maxCoordinate <= 0 || movement.joinGraceSeconds < 0 || movement.flightAirTicks < 20 || movement.waterWalkTicks < 20) throw new IOException("movement limits must be positive");
             if (combat.reachTolerance < 0 || combat.invulnerabilityTicks < 20 || packets.movePacketsPerSecond < 1 || packets.attackPacketsPerSecond < 1) throw new IOException("packet limits and reach tolerance are invalid");
             if (enforcement.alertAt < 1 || enforcement.kickAt <= enforcement.alertAt || enforcement.decaySeconds < 1) throw new IOException("enforcement thresholds are invalid");
             if (enforcement.banBaseSeconds < 1 || enforcement.fastScoreWindowSeconds < 1 || enforcement.fastScoreThreshold < 1 || enforcement.permanentBanLevel < 2) throw new IOException("ban settings are invalid");
+            if (clientDetection.secureHandshake.timeoutSeconds < 1 || clientDetection.secureHandshake.timeoutSeconds > 120) throw new IOException("secure handshake timeout must be between 1 and 120 seconds");
+            for (String hash : clientDetection.secureHandshake.allowedClientSha256) {
+                if (hash == null || !hash.toLowerCase(Locale.ROOT).matches("[0-9a-f]{64}")) throw new IOException("allowedClientSha256 must contain SHA-256 hex values");
+            }
         }
     }
 
@@ -117,9 +122,19 @@ public final class GuardConfig {
          * Keep this off by default so vanilla clients can still join a normal server.
          */
         public boolean requireClientMod = false;
+        public SecureHandshake secureHandshake = new SecureHandshake();
         /** Exact Fabric mod ids to permanently ban when reported by the optional client companion. */
         public List<String> blockedModIds = new ArrayList<>(List.of(
                 "wurst", "meteor-client", "aristois", "bleachhack", "liquidbounce",
                 "inertia", "impact", "kami", "lambda", "rusherhack", "coffee", "konas"));
+    }
+
+    /** Opt-in encrypted challenge/proof; it is not a replacement for server-side checks. */
+    public static final class SecureHandshake {
+        public boolean enabled = false;
+        public int timeoutSeconds = 10;
+        /** When enabled, only the listed SHA-256 fingerprints of this client JAR are accepted. */
+        public boolean requireKnownIntegrity = false;
+        public List<String> allowedClientSha256 = new ArrayList<>();
     }
 }

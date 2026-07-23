@@ -23,6 +23,10 @@
 
 如需强制玩家安装本 Mod，请将 `clientDetection.requireClientMod` 改为 `true` 并执行 `/hg reload`。该选项默认关闭；开启后，没有声明 `hekuo's guard` 客户端网络通道的客户端会在进入后立刻被拒绝。此机制只能确认客户端声明并支持本 Mod，不能阻止恶意修改后的客户端伪造该声明，服务端检测仍应保持开启。
 
+离线模式服务器可额外开启 `clientDetection.secureHandshake.enabled`。它使用服务端持久化 Ed25519 签名身份、每次连接的随机挑战、X25519 密钥协商和 AES-GCM 加密的客户端 JAR SHA-256 报告；客户端会首次信任服务器签名指纹，若以后指纹改变则拒绝响应。服务端身份保存在 `config/hekuos_guard_identity.json`，务必备份且不要泄露；客户端信任记录在 `config/hekuos_guard_known_servers.json`。这不是标准 TLS，也不能从技术上阻止被完全修改的客户端伪造完整性报告。
+
+若要只接受指定构建，请将 `clientDetection.secureHandshake.requireKnownIntegrity` 设为 `true`，并把客户端日志中输出的 SHA-256 填入 `allowedClientSha256`。启用安全握手会强制安装支持该协议的 hekuo's guard 客户端，超时时间由 `timeoutSeconds`（默认 10 秒）控制。
+
 ## 安装
 
 1. 安装 Fabric Loader、Fabric API，并将构建出的 JAR 放入服务器 `mods/`。

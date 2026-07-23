@@ -5,6 +5,8 @@ import dev.hekuo.guard.config.GuardConfig;
 import dev.hekuo.guard.core.ViolationManager;
 import dev.hekuo.guard.network.ClientModReportPayload;
 import dev.hekuo.guard.network.ClientRulesPayload;
+import dev.hekuo.guard.network.SecureChallengePayload;
+import dev.hekuo.guard.network.SecureResponsePayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -31,9 +33,13 @@ public final class HekuosGuard implements ModInitializer {
     public void onInitialize() {
         CONFIG.loadOrCreate();
         PayloadTypeRegistry.playS2C().register(ClientRulesPayload.ID, ClientRulesPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(SecureChallengePayload.ID, SecureChallengePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(ClientModReportPayload.ID, ClientModReportPayload.CODEC);
+        PayloadTypeRegistry.playC2S().register(SecureResponsePayload.ID, SecureResponsePayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(ClientModReportPayload.ID, (payload, context) ->
                 context.server().execute(() -> VIOLATIONS.handleClientModReport(context.player(), payload.modId())));
+        ServerPlayNetworking.registerGlobalReceiver(SecureResponsePayload.ID, (payload, context) ->
+                context.server().execute(() -> VIOLATIONS.handleSecureResponse(context.player(), payload)));
         ServerLifecycleEvents.SERVER_STARTED.register(server -> VIOLATIONS.start(server));
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> VIOLATIONS.stop());
         ServerTickEvents.END_SERVER_TICK.register(VIOLATIONS::tick);
