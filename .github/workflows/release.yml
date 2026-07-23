@@ -73,7 +73,8 @@ jobs:
         if: github.ref_type == 'tag' && env.MODRINTH_PROJECT_ID != ''
         shell: bash
         run: |
-          awk -v heading="## [${MOD_VERSION}]" '
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v heading="## [${VERSION}]" '
             $0 == heading { found=1; next }
             found && /^## / { exit }
             found { print }
