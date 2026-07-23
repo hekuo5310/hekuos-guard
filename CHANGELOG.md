@@ -1,5 +1,7 @@
 # 更新日志
 
+> Modrinth 正式发布说明存放于 `release-notes/v版本号.md`；例如发布 `v1.0.5` 前需新增 `release-notes/v1.0.5.md`。
+
 ## [1.0.4] - 2026-07-23
 
 - 新增 Timer 检测，限制单个服务端 tick 内的累计水平位移。

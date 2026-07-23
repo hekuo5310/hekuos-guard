@@ -69,18 +69,11 @@ jobs:
           files: |
             build/libs/hekuos-guard-*.jar
 
-      - name: Extract Modrinth changelog
+      - name: Verify Modrinth release notes
         if: github.ref_type == 'tag' && env.MODRINTH_PROJECT_ID != ''
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          awk -v heading="## [${VERSION}]" '
-            $0 == heading { found=1; next }
-            found && /^## / { exit }
-            found { print }
-            END { if (!found) exit 1 }
-          ' CHANGELOG.md > build/modrinth-changelog.md
-          test -s build/modrinth-changelog.md
+          test -s "release-notes/${GITHUB_REF_NAME}.md"
 
       - name: Publish to Modrinth
         if: github.ref_type == 'tag' && env.MODRINTH_PROJECT_ID != ''
@@ -94,7 +87,7 @@ jobs:
           files: build/libs/hekuos-guard-${{ env.MOD_VERSION }}.jar
           game-versions: 1.21.1
           loaders: fabric
-          changelog-file: build/modrinth-changelog.md
+          changelog-file: release-notes/${{ github.ref_name }}.md
 
       - name: Update rolling pre-release
         if: github.ref_type != 'tag'
