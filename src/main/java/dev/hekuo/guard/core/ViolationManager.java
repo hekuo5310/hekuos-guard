@@ -47,6 +47,13 @@ public final class ViolationManager {
             player.networkHandler.disconnect(bans.message(record));
             return;
         }
+        GuardConfig.ClientDetection detection = config.get().clientDetection;
+        if (detection.requireClientMod
+                && !ServerPlayNetworking.canSend(player, dev.hekuo.guard.network.ClientRulesPayload.ID)) {
+            HekuosGuard.LOGGER.info("Rejected {} because the required hekuo's guard client companion is unavailable", player.getGameProfile().getName());
+            player.networkHandler.disconnect(Text.literal("此服务器要求安装 hekuo's guard 客户端 Mod 才能进入。"));
+            return;
+        }
         PlayerState state = state(player);
         state.exemptUntilTick = Math.max(state.exemptUntilTick, tick + config.get().movement.joinGraceSeconds * 20L);
         sendClientRules(player);

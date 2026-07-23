@@ -112,6 +112,11 @@ public final class GuardConfig {
     /** Rules are sent only to clients that have hekuo's guard installed. */
     public static final class ClientDetection {
         public boolean enabled = true;
+        /**
+         * Reject clients that do not advertise support for the guard client payload.
+         * Keep this off by default so vanilla clients can still join a normal server.
+         */
+        public boolean requireClientMod = false;
         /** Exact Fabric mod ids to permanently ban when reported by the optional client companion. */
         public List<String> blockedModIds = new ArrayList<>(List.of(
                 "wurst", "meteor-client", "aristois", "bleachhack", "liquidbounce",
