@@ -14,6 +14,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Project ids are not sensitive, but accept either a Repository Variable or the
+      # existing Repository Secret so current installations do not get skipped.
+      MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID || secrets.MODRINTH_PROJECT_ID }}
 
     steps:
       - name: Check out source
@@ -66,7 +70,7 @@ jobs:
             build/libs/hekuos-guard-*.jar
 
       - name: Extract Modrinth changelog
-        if: github.ref_type == 'tag' && vars.MODRINTH_PROJECT_ID != ''
+        if: github.ref_type == 'tag' && env.MODRINTH_PROJECT_ID != ''
         shell: bash
         run: |
           awk -v heading="## [${MOD_VERSION}]" '
@@ -78,10 +82,10 @@ jobs:
           test -s build/modrinth-changelog.md
 
       - name: Publish to Modrinth
-        if: github.ref_type == 'tag' && vars.MODRINTH_PROJECT_ID != ''
+        if: github.ref_type == 'tag' && env.MODRINTH_PROJECT_ID != ''
         uses: Kira-NT/mc-publish@v3
         with:
-          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
           name: hekuo's guard ${{ env.MOD_VERSION }}
           version: ${{ env.MOD_VERSION }}
