@@ -7,9 +7,10 @@
   "authors": ["hekuo"],
   "contact": {},
   "license": "Apache-2.0",
-  "environment": "server",
+  "environment": "*",
   "entrypoints": {
-    "main": ["dev.hekuo.guard.HekuosGuard"]
+    "main": ["dev.hekuo.guard.HekuosGuard"],
+    "client": ["dev.hekuo.guard.client.HekuosGuardClient"]
   },
   "mixins": ["hekuos_guard.mixins.json"],
   "depends": {

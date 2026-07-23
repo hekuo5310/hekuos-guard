@@ -22,6 +22,7 @@ import net.minecraft.registry.tag.FluidTags;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -48,6 +49,7 @@ public final class ViolationManager {
         }
         PlayerState state = state(player);
         state.exemptUntilTick = Math.max(state.exemptUntilTick, tick + config.get().movement.joinGraceSeconds * 20L);
+        sendClientRules(player);
     }
     public void leave(ServerPlayerEntity player) { states.remove(player.getUuid()); alertSubscribers.remove(player.getUuid()); }
     public long tickCount() { return tick; }
@@ -144,6 +146,24 @@ public final class ViolationManager {
     public boolean toggleAlerts(ServerPlayerEntity player) { return alertSubscribers.remove(player.getUuid()) ? false : alertSubscribers.add(player.getUuid()); }
     public boolean unbanByPlayerName(String playerName) { return bans.unbanByPlayerName(playerName); }
     public boolean forceUnbanByPlayerName(String playerName) { return bans.forceUnbanByPlayerName(playerName); }
+    public void sendClientRules(ServerPlayerEntity player) {
+        GuardConfig.ClientDetection detection = config.get().clientDetection;
+        if (!detection.enabled || !ServerPlayNetworking.canSend(player, dev.hekuo.guard.network.ClientRulesPayload.ID)) return;
+        ServerPlayNetworking.send(player, new dev.hekuo.guard.network.ClientRulesPayload(List.copyOf(detection.blockedModIds)));
+    }
+    public void sendClientRulesToAll() {
+        if (server != null) for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) sendClientRules(player);
+    }
+    public void handleClientModReport(ServerPlayerEntity player, String modId) {
+        GuardConfig.ClientDetection detection = config.get().clientDetection;
+        if (!detection.enabled || modId == null || modId.length() > 128) return;
+        boolean blocked = detection.blockedModIds.stream().anyMatch(rule -> rule.equalsIgnoreCase(modId));
+        if (!blocked) return;
+        BanManager.BanRecord record = bans.permanentBan(player, config.get().enforcement);
+        audit.write(player, CheckType.INVALID_PACKET, "client reported blocked mod: " + modId, record.level, tick);
+        HekuosGuard.LOGGER.warn("Permanently banned {} after client reported blocked mod {}", player.getGameProfile().getName(), modId);
+        player.networkHandler.disconnect(bans.message(record));
+    }
 
     private PlayerState state(ServerPlayerEntity player) {
         return states.computeIfAbsent(player.getUuid(), ignored -> new PlayerState(player.getUuid(), player.getPos(), tick, System.nanoTime(),

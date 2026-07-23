@@ -49,6 +49,15 @@ final class BanManager {
         return record;
     }
 
+    synchronized BanRecord permanentBan(ServerPlayerEntity player, GuardConfig.Enforcement settings) {
+        BanRecord previous = bans.get(player.getUuid());
+        int level = Math.max(settings.permanentBanLevel, previous == null ? 0 : previous.level);
+        BanRecord record = new BanRecord(player.getUuid(), player.getName().getString(), level, 0L, Instant.now().toEpochMilli());
+        bans.put(player.getUuid(), record);
+        save();
+        return record;
+    }
+
     synchronized BanRecord active(UUID uuid) {
         BanRecord record = bans.get(uuid);
         if (record != null && isActive(record) && record.expiresAt != 0L && record.expiresAt <= Instant.now().toEpochMilli()) {

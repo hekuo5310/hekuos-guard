@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Mutable, atomically replaced JSON configuration. */
 public final class GuardConfig {
@@ -47,9 +49,10 @@ public final class GuardConfig {
         public Packets packets = new Packets();
         public Enforcement enforcement = new Enforcement();
         public Logging logging = new Logging();
+        public ClientDetection clientDetection = new ClientDetection();
 
         void validate() throws IOException {
-            if (movement == null || combat == null || packets == null || enforcement == null || logging == null) throw new IOException("missing configuration section");
+            if (movement == null || combat == null || packets == null || enforcement == null || logging == null || clientDetection == null) throw new IOException("missing configuration section");
             if (movement.maxHorizontalPerTick <= 0 || movement.maxVerticalPerTick <= 0 || movement.maxCoordinate <= 0 || movement.joinGraceSeconds < 0 || movement.flightAirTicks < 20 || movement.waterWalkTicks < 20) throw new IOException("movement limits must be positive");
             if (combat.reachTolerance < 0 || combat.invulnerabilityTicks < 20 || packets.movePacketsPerSecond < 1 || packets.attackPacketsPerSecond < 1) throw new IOException("packet limits and reach tolerance are invalid");
             if (enforcement.alertAt < 1 || enforcement.kickAt <= enforcement.alertAt || enforcement.decaySeconds < 1) throw new IOException("enforcement thresholds are invalid");
@@ -104,5 +107,14 @@ public final class GuardConfig {
     public static final class Logging {
         public boolean jsonlAudit = true;
         public boolean staffAlerts = true;
+    }
+
+    /** Rules are sent only to clients that have hekuo's guard installed. */
+    public static final class ClientDetection {
+        public boolean enabled = true;
+        /** Exact Fabric mod ids to permanently ban when reported by the optional client companion. */
+        public List<String> blockedModIds = new ArrayList<>(List.of(
+                "wurst", "meteor-client", "aristois", "bleachhack", "liquidbounce",
+                "inertia", "impact", "kami", "lambda", "rusherhack", "coffee", "konas"));
     }
 }

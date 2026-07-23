@@ -17,6 +17,10 @@
 - 玩家登录后的前 15 秒不进行移动计分，避免出生点、区块加载和客户端位置同步造成误判。
 - 创造/旁观、Fuji 授权飞行、鞘翅、载具、液体、梯子、药水和强外力移动均不触发飞行检测；Fuji `/god` 会作为生存模式免伤处罚。
 
+## 可选客户端检测
+
+同一 JAR 可安装在客户端。服务器会向已安装客户端下发 `clientDetection.blockedModIds`，客户端发现命中项后上报，服务器立即永久封禁该账号。默认名单包含 Wurst、Meteor（`meteor-client`）、Aristois、BleachHack、LiquidBounce、Inertia、Impact、KAMI、Lambda、RusherHack、Coffee 和 Konas；可在 `config/hekuos_guard.json` 中调整。未安装本 Mod 的客户端不会上报，因此这是一层附加检测，不替代服务端反作弊。
+
 ## 安装
 
 1. 安装 Fabric Loader、Fabric API，并将构建出的 JAR 放入服务器 `mods/`。
