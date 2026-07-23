@@ -17,7 +17,8 @@ jobs:
     env:
       # Project ids are not sensitive, but accept either a Repository Variable or the
       # existing Repository Secret so current installations do not get skipped.
-      MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID || secrets.MODRINTH_PROJECT_ID }}
+      MODRINTH_PROJECT_REFERENCE: ${{ vars.MODRINTH_PROJECT_ID || secrets.MODRINTH_PROJECT_ID }}
+      MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
 
     steps:
       - name: Check out source
@@ -69,14 +70,26 @@ jobs:
           files: |
             build/libs/hekuos-guard-*.jar
 
+      - name: Resolve Modrinth project ID
+        if: github.ref_type == 'tag' && env.MODRINTH_PROJECT_REFERENCE != ''
+        shell: bash
+        run: |
+          project_json="$(curl --fail-with-body --silent --show-error \
+            --header "Authorization: ${MODRINTH_TOKEN}" \
+            --header "User-Agent: hekuos-guard-release/1.0" \
+            "https://api.modrinth.com/v2/project/${MODRINTH_PROJECT_REFERENCE}")"
+          project_id="$(printf '%s' "$project_json" | jq --exit-status --raw-output '.id')"
+          test "$project_id" != "null"
+          echo "MODRINTH_PROJECT_ID=$project_id" >> "$GITHUB_ENV"
+
       - name: Verify Modrinth release notes
-        if: github.ref_type == 'tag' && env.MODRINTH_PROJECT_ID != ''
+        if: github.ref_type == 'tag' && env.MODRINTH_PROJECT_REFERENCE != ''
         shell: bash
         run: |
           test -s "release-notes/${GITHUB_REF_NAME}.md"
 
       - name: Publish to Modrinth
-        if: github.ref_type == 'tag' && env.MODRINTH_PROJECT_ID != ''
+        if: github.ref_type == 'tag' && env.MODRINTH_PROJECT_REFERENCE != ''
         uses: Kira-NT/mc-publish@v3
         with:
           modrinth-id: ${{ env.MODRINTH_PROJECT_ID }}
