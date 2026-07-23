@@ -26,6 +26,8 @@ final class PlayerState {
     int invulnerableTicks;
     long movementBudgetTick = Long.MIN_VALUE;
     double horizontalDistanceThisTick;
+    long lastMovePacketNanos;
+    int timerOverBudgetTicks;
     TokenBucket moveBucket;
     TokenBucket attackBucket;
     TokenBucket interactBucket;
@@ -35,6 +37,7 @@ final class PlayerState {
         this.safePosition = initial;
         this.lastPosition = initial;
         this.lastMoveTick = tick;
+        this.lastMovePacketNanos = nowNanos;
         this.lastDecayTick = tick;
         this.moveBucket = new TokenBucket(moveRate, (double) moveRate * burst, nowNanos);
         this.attackBucket = new TokenBucket(attackRate, (double) attackRate * burst, nowNanos);

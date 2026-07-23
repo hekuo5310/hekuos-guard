@@ -129,6 +129,8 @@ public final class ViolationManager {
         }
         if (isMovementExempt(player, state)) return true;
         long now = System.nanoTime();
+        boolean delayedBurst = now - state.lastMovePacketNanos >= cfg.movement.packetBurstGraceMillis * 1_000_000L;
+        state.lastMovePacketNanos = now;
         if (cfg.packets.enabled && !state.moveBucket.tryTake(now)) {
             violation(player, state, CheckType.INVALID_PACKET, "movement packet flood", 5, false);
             return false;
@@ -142,9 +144,21 @@ public final class ViolationManager {
         double displacement = target.distanceTo(player.getPos());
         boolean clips = displacement > 1.5 && !player.getWorld().isSpaceEmpty(player, player.getBoundingBox().offset(target.subtract(player.getPos())));
         if (tooFast || clips) {
+            // Packet loss and server stalls can coalesce multiple normal positions into one
+            // arrival. Accept that one recovery packet; sustained abnormal movement is still checked.
+            if (tooFast && !clips && delayedBurst) {
+                state.timerOverBudgetTicks = 0;
+                state.lastMoveTick = tick;
+                return true;
+            }
             violation(player, state, clips ? CheckType.PHASE : CheckType.MOVE_SPEED,
                     clips ? "target collides with solid shape" : "movement exceeds conservative envelope", 3, true);
             return false;
+        }
+        if (!cfg.movement.timerEnabled) {
+            state.timerOverBudgetTicks = 0;
+            state.lastMoveTick = tick;
+            return true;
         }
         if (state.movementBudgetTick != tick) {
             state.movementBudgetTick = tick;
@@ -152,9 +166,14 @@ public final class ViolationManager {
         }
         state.horizontalDistanceThisTick += Math.hypot(target.x - player.getX(), target.z - player.getZ());
         if (state.horizontalDistanceThisTick > cfg.movement.maxCumulativeHorizontalPerTick) {
+            if (delayedBurst || ++state.timerOverBudgetTicks < cfg.movement.timerConsecutiveTicks) {
+                state.lastMoveTick = tick;
+                return true;
+            }
             violation(player, state, CheckType.TIMER, "cumulative movement exceeds one-tick envelope", 3, true);
             return false;
         }
+        state.timerOverBudgetTicks = 0;
         state.lastMoveTick = tick;
         return true;
     }

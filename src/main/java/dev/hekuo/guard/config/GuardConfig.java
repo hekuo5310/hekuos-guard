@@ -54,7 +54,7 @@ public final class GuardConfig {
 
         void validate() throws IOException {
             if (movement == null || combat == null || packets == null || enforcement == null || logging == null || clientDetection == null || clientDetection.secureHandshake == null) throw new IOException("missing configuration section");
-            if (movement.maxHorizontalPerTick <= 0 || movement.maxCumulativeHorizontalPerTick <= 0 || movement.maxVerticalPerTick <= 0 || movement.maxCoordinate <= 0 || movement.joinGraceSeconds < 0 || movement.flightAirTicks < 20 || movement.waterWalkTicks < 20) throw new IOException("movement limits must be positive");
+            if (movement.maxHorizontalPerTick <= 0 || movement.maxCumulativeHorizontalPerTick <= 0 || movement.maxVerticalPerTick <= 0 || movement.maxCoordinate <= 0 || movement.packetBurstGraceMillis < 0 || movement.timerConsecutiveTicks < 1 || movement.joinGraceSeconds < 0 || movement.flightAirTicks < 20 || movement.waterWalkTicks < 20) throw new IOException("movement limits must be positive");
             if (combat.reachTolerance < 0 || combat.invulnerabilityTicks < 20 || packets.movePacketsPerSecond < 1 || packets.attackPacketsPerSecond < 1 || packets.interactPacketsPerSecond < 1) throw new IOException("packet limits and reach tolerance are invalid");
             if (enforcement.alertAt < 1 || enforcement.kickAt <= enforcement.alertAt || enforcement.decaySeconds < 1) throw new IOException("enforcement thresholds are invalid");
             if (enforcement.banBaseSeconds < 1 || enforcement.fastScoreWindowSeconds < 1 || enforcement.fastScoreThreshold < 1 || enforcement.permanentBanLevel < 2) throw new IOException("ban settings are invalid");
@@ -68,8 +68,14 @@ public final class GuardConfig {
     public static final class Movement {
         public boolean enabled = true;
         public double maxHorizontalPerTick = 0.85;
-        /** Total horizontal displacement accepted in a single server tick (Timer check). */
-        public double maxCumulativeHorizontalPerTick = 1.2;
+        /** Disabled by default: packet batching makes Timer checks unsuitable for a conservative server. */
+        public boolean timerEnabled = false;
+        /** Total horizontal displacement accepted in a single server tick when Timer detection is enabled. */
+        public double maxCumulativeHorizontalPerTick = 3.0;
+        /** Consecutive over-budget ticks required before a Timer violation is issued. */
+        public int timerConsecutiveTicks = 3;
+        /** A delayed packet burst receives grace instead of an immediate speed violation. */
+        public int packetBurstGraceMillis = 250;
         public double maxVerticalPerTick = 1.25;
         public double maxCoordinate = 29_999_984.0;
         public int safeTicks = 5;
