@@ -40,6 +40,7 @@ public final class GuardCommands {
     private static int reload(CommandContext<ServerCommandSource> context) {
         try {
             HekuosGuard.config().reload();
+            HekuosGuard.violations().sendClientRulesToAll();
             context.getSource().sendFeedback(() -> Text.literal("[HG] configuration reloaded"), true);
             return 1;
         } catch (IOException exception) {
