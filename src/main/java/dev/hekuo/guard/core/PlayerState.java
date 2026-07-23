@@ -24,10 +24,13 @@ final class PlayerState {
     int airborneTicks;
     int waterWalkTicks;
     int invulnerableTicks;
+    long movementBudgetTick = Long.MIN_VALUE;
+    double horizontalDistanceThisTick;
     TokenBucket moveBucket;
     TokenBucket attackBucket;
+    TokenBucket interactBucket;
 
-    PlayerState(UUID uuid, Vec3d initial, long tick, long nowNanos, int moveRate, int attackRate, int burst) {
+    PlayerState(UUID uuid, Vec3d initial, long tick, long nowNanos, int moveRate, int attackRate, int interactRate, int burst) {
         this.uuid = uuid;
         this.safePosition = initial;
         this.lastPosition = initial;
@@ -35,6 +38,7 @@ final class PlayerState {
         this.lastDecayTick = tick;
         this.moveBucket = new TokenBucket(moveRate, (double) moveRate * burst, nowNanos);
         this.attackBucket = new TokenBucket(attackRate, (double) attackRate * burst, nowNanos);
+        this.interactBucket = new TokenBucket(interactRate, (double) interactRate * burst, nowNanos);
     }
 
     void remember(Vec3d position) {

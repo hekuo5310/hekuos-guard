@@ -2,6 +2,8 @@ package dev.hekuo.guard.mixin;
 
 import dev.hekuo.guard.HekuosGuard;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.network.packet.c2s.play.VehicleMoveC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,6 +22,16 @@ abstract class ServerPlayNetworkHandlerMixin {
         double x = packet.getX(player.getX());
         double y = packet.getY(player.getY());
         double z = packet.getZ(player.getZ());
-        if (!HekuosGuard.violations().checkMovePacket(player, x, y, z)) callback.cancel();
+        if (!HekuosGuard.violations().checkMovePacket(player, x, y, z, packet.getYaw(player.getYaw()), packet.getPitch(player.getPitch()))) callback.cancel();
+    }
+
+    @Inject(method = "onVehicleMove", at = @At("HEAD"), cancellable = true)
+    private void hekuosGuard$validateVehicleMove(VehicleMoveC2SPacket packet, CallbackInfo callback) {
+        if (!HekuosGuard.violations().checkVehicleMovePacket(player, packet.getX(), packet.getY(), packet.getZ(), packet.getYaw(), packet.getPitch())) callback.cancel();
+    }
+
+    @Inject(method = "onPlayerInteractEntity", at = @At("HEAD"), cancellable = true)
+    private void hekuosGuard$limitEntityInteractions(PlayerInteractEntityC2SPacket packet, CallbackInfo callback) {
+        if (!HekuosGuard.violations().checkInteractPacket(player)) callback.cancel();
     }
 }

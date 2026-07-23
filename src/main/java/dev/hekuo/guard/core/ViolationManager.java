@@ -115,12 +115,16 @@ public final class ViolationManager {
     }
 
     /** Called by the pre-processing move-packet mixin. False means cancel this packet. */
-    public boolean checkMovePacket(ServerPlayerEntity player, double x, double y, double z) {
+    public boolean checkMovePacket(ServerPlayerEntity player, double x, double y, double z, float yaw, float pitch) {
         GuardConfig.Values cfg = config.get();
         if (!cfg.enabled || !cfg.movement.enabled) return true;
         PlayerState state = state(player);
         if (!finite(x, y, z) || Math.abs(x) > cfg.movement.maxCoordinate || Math.abs(y) > cfg.movement.maxCoordinate || Math.abs(z) > cfg.movement.maxCoordinate) {
             violation(player, state, CheckType.INVALID_PACKET, "non-finite or out-of-world position", 20, true);
+            return false;
+        }
+        if (!Float.isFinite(yaw) || !Float.isFinite(pitch)) {
+            violation(player, state, CheckType.INVALID_ROTATION, "non-finite rotation", 20, true);
             return false;
         }
         if (isMovementExempt(player, state)) return true;
@@ -142,8 +146,43 @@ public final class ViolationManager {
                     clips ? "target collides with solid shape" : "movement exceeds conservative envelope", 3, true);
             return false;
         }
+        if (state.movementBudgetTick != tick) {
+            state.movementBudgetTick = tick;
+            state.horizontalDistanceThisTick = 0;
+        }
+        state.horizontalDistanceThisTick += Math.hypot(target.x - player.getX(), target.z - player.getZ());
+        if (state.horizontalDistanceThisTick > cfg.movement.maxCumulativeHorizontalPerTick) {
+            violation(player, state, CheckType.TIMER, "cumulative movement exceeds one-tick envelope", 3, true);
+            return false;
+        }
         state.lastMoveTick = tick;
         return true;
+    }
+
+    /** Vehicle movement has different physics, so only reject malformed coordinates and packet floods. */
+    public boolean checkVehicleMovePacket(ServerPlayerEntity player, double x, double y, double z, float yaw, float pitch) {
+        GuardConfig.Values cfg = config.get();
+        if (!cfg.enabled || !cfg.packets.enabled) return true;
+        if (!finite(x, y, z) || !Float.isFinite(yaw) || !Float.isFinite(pitch)
+                || Math.abs(x) > cfg.movement.maxCoordinate || Math.abs(y) > cfg.movement.maxCoordinate || Math.abs(z) > cfg.movement.maxCoordinate) {
+            violation(player, state(player), CheckType.VEHICLE_PACKET, "invalid vehicle movement values", 20, false);
+            return false;
+        }
+        if (!state(player).moveBucket.tryTake(System.nanoTime())) {
+            violation(player, state(player), CheckType.VEHICLE_PACKET, "vehicle movement packet flood", 5, false);
+            return false;
+        }
+        return true;
+    }
+
+    /** Covers interact, attack and interact-at packets, including malformed target spam that never reaches the attack event. */
+    public boolean checkInteractPacket(ServerPlayerEntity player) {
+        GuardConfig.Values cfg = config.get();
+        if (!cfg.enabled || !cfg.packets.enabled) return true;
+        PlayerState state = state(player);
+        if (state.interactBucket.tryTake(System.nanoTime())) return true;
+        violation(player, state, CheckType.INTERACT_FLOOD, "entity interaction packet flood", 5, false);
+        return false;
     }
 
     /** Fabric's server-side attack event lets valid automation remain untouched while impossible hits are cancelled. */
@@ -242,7 +281,8 @@ public final class ViolationManager {
 
     private PlayerState state(ServerPlayerEntity player) {
         return states.computeIfAbsent(player.getUuid(), ignored -> new PlayerState(player.getUuid(), player.getPos(), tick, System.nanoTime(),
-                config.get().packets.movePacketsPerSecond, config.get().packets.attackPacketsPerSecond, config.get().packets.burstMultiplier));
+                config.get().packets.movePacketsPerSecond, config.get().packets.attackPacketsPerSecond,
+                config.get().packets.interactPacketsPerSecond, config.get().packets.burstMultiplier));
     }
     private boolean isMovementExempt(ServerPlayerEntity player, PlayerState state) {
         // Fuji's /fly and other server-side flight systems grant vanilla player abilities.
