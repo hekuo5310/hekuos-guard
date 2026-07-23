@@ -50,15 +50,17 @@ public final class GuardConfig {
         public Packets packets = new Packets();
         public Enforcement enforcement = new Enforcement();
         public Logging logging = new Logging();
+        public Updater updater = new Updater();
         public ClientDetection clientDetection = new ClientDetection();
 
         void validate() throws IOException {
-            if (movement == null || combat == null || packets == null || enforcement == null || logging == null || clientDetection == null || clientDetection.secureHandshake == null) throw new IOException("missing configuration section");
+            if (movement == null || combat == null || packets == null || enforcement == null || logging == null || updater == null || clientDetection == null || clientDetection.secureHandshake == null) throw new IOException("missing configuration section");
             if (movement.maxHorizontalPerTick <= 0 || movement.maxCumulativeHorizontalPerTick <= 0 || movement.maxVerticalPerTick <= 0 || movement.maxCoordinate <= 0 || movement.packetBurstGraceMillis < 0 || movement.timerConsecutiveTicks < 1 || movement.joinGraceSeconds < 0 || movement.flightAirTicks < 20 || movement.waterWalkTicks < 20) throw new IOException("movement limits must be positive");
             if (combat.reachTolerance < 0 || combat.invulnerabilityTicks < 20 || packets.movePacketsPerSecond < 1 || packets.attackPacketsPerSecond < 1 || packets.interactPacketsPerSecond < 1) throw new IOException("packet limits and reach tolerance are invalid");
             if (enforcement.alertAt < 1 || enforcement.kickAt <= enforcement.alertAt || enforcement.decaySeconds < 1) throw new IOException("enforcement thresholds are invalid");
             if (enforcement.banBaseSeconds < 1 || enforcement.fastScoreWindowSeconds < 1 || enforcement.fastScoreThreshold < 1 || enforcement.permanentBanLevel < 2) throw new IOException("ban settings are invalid");
             if (clientDetection.secureHandshake.timeoutSeconds < 1 || clientDetection.secureHandshake.timeoutSeconds > 120) throw new IOException("secure handshake timeout must be between 1 and 120 seconds");
+            if (updater.githubRepository == null || !updater.githubRepository.matches("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+") || updater.requestTimeoutSeconds < 5 || updater.requestTimeoutSeconds > 120) throw new IOException("updater settings are invalid");
             for (String hash : clientDetection.secureHandshake.allowedClientSha256) {
                 if (hash == null || !hash.toLowerCase(Locale.ROOT).matches("[0-9a-f]{64}")) throw new IOException("allowedClientSha256 must contain SHA-256 hex values");
             }
@@ -121,6 +123,15 @@ public final class GuardConfig {
     public static final class Logging {
         public boolean jsonlAudit = true;
         public boolean staffAlerts = true;
+    }
+
+    /** Opt-in update checks; JAR replacement is deliberately deferred until the administrator restarts. */
+    public static final class Updater {
+        public boolean enabled = false;
+        public boolean checkOnStartup = true;
+        public boolean autoDownload = true;
+        public String githubRepository = "hekuo5310/hekuos-guard";
+        public int requestTimeoutSeconds = 20;
     }
 
     /** Rules are sent only to clients that have hekuo's guard installed. */

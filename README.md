@@ -113,6 +113,24 @@ hekuo's guard 优先避免误判，只根据服务端可观察到的行为作出
 | `/hg unban <player>` | 按玩家名解封，保留处罚等级。 |
 | `/hg unban <player> --force` | 按玩家名解封并删除处罚历史。 |
 
+## 自动更新
+
+自动更新默认关闭。启用后，服务器启动时会查询 `githubRepository` 的最新 GitHub Release；发现比当前版本更新的 JAR 时，下载并验证其中的 `fabric.mod.json`，随后暂存至 `config/hekuos_guard/updates/`。
+
+```json
+{
+  "updater": {
+    "enabled": true,
+    "checkOnStartup": true,
+    "autoDownload": true,
+    "githubRepository": "hekuo5310/hekuos-guard",
+    "requestTimeoutSeconds": 20
+  }
+}
+```
+
+运行中的 Fabric 无法安全替换正在加载的 JAR，因此不会热更新或覆盖 `mods/` 中的文件。下载完成后，停止服务器，将暂存的 JAR 替换到 `mods/`，再启动服务器即可生效。使用 `/hg update` 查看状态，`/hg update check` 可手动触发检查；`autoDownload: false` 时只报告新版本而不下载。
+
 ## 构建
 
 使用 Java 21：

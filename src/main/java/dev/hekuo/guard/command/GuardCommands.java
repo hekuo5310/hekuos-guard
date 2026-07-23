@@ -22,6 +22,7 @@ public final class GuardCommands {
                 .then(CommandManager.literal("reload").executes(GuardCommands::reload))
                 .then(CommandManager.literal("alerts").executes(GuardCommands::alerts))
                 .then(CommandManager.literal("status").then(CommandManager.argument("player", EntityArgumentType.player()).executes(GuardCommands::status)))
+                .then(updateCommand())
                 .then(CommandManager.literal("reset").then(CommandManager.argument("player", EntityArgumentType.player()).executes(GuardCommands::reset)))
                 .then(CommandManager.literal("exempt")
                         .then(CommandManager.argument("player", EntityArgumentType.player())
@@ -32,6 +33,7 @@ public final class GuardCommands {
                 .then(CommandManager.literal("reload").executes(GuardCommands::reload))
                 .then(CommandManager.literal("alerts").executes(GuardCommands::alerts))
                 .then(CommandManager.literal("status").then(CommandManager.argument("player", EntityArgumentType.player()).executes(GuardCommands::status)))
+                .then(updateCommand())
                 .then(CommandManager.literal("reset").then(CommandManager.argument("player", EntityArgumentType.player()).executes(GuardCommands::reset)))
                 .then(CommandManager.literal("exempt").then(CommandManager.argument("player", EntityArgumentType.player()).then(CommandManager.argument("seconds", IntegerArgumentType.integer(1)).executes(GuardCommands::exempt))))
                 .then(unbanCommand()));
@@ -72,6 +74,20 @@ public final class GuardCommands {
         int seconds = IntegerArgumentType.getInteger(context, "seconds");
         HekuosGuard.violations().exempt(player, seconds);
         context.getSource().sendFeedback(() -> Text.literal("[HG] exempted " + player.getName().getString() + " for " + seconds + " seconds"), true);
+        return 1;
+    }
+    private static com.mojang.brigadier.builder.LiteralArgumentBuilder<ServerCommandSource> updateCommand() {
+        return CommandManager.literal("update")
+                .executes(GuardCommands::updateStatus)
+                .then(CommandManager.literal("check").executes(GuardCommands::checkForUpdates));
+    }
+    private static int updateStatus(CommandContext<ServerCommandSource> context) {
+        context.getSource().sendFeedback(() -> Text.literal("[HG] updater: " + HekuosGuard.updater().status()), false);
+        return 1;
+    }
+    private static int checkForUpdates(CommandContext<ServerCommandSource> context) {
+        HekuosGuard.updater().check(HekuosGuard.config().get().updater.autoDownload);
+        context.getSource().sendFeedback(() -> Text.literal("[HG] update check started; use /hg update for status"), false);
         return 1;
     }
     private static int unban(CommandContext<ServerCommandSource> context) {
