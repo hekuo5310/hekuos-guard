@@ -132,9 +132,13 @@ public final class ViolationManager {
         boolean delayedBurst = now - state.lastMovePacketNanos >= cfg.movement.packetBurstGraceMillis * 1_000_000L;
         state.lastMovePacketNanos = now;
         if (cfg.packets.enabled && !state.moveBucket.tryTake(now)) {
-            violation(player, state, CheckType.INVALID_PACKET, "movement packet flood", 5, false);
+            if (++state.moveFloodStreak >= cfg.packets.moveFloodStrikes) {
+                state.moveFloodStreak = 0;
+                violation(player, state, CheckType.INVALID_PACKET, "sustained movement packet flood", 3, false);
+            }
             return false;
         }
+        state.moveFloodStreak = 0;
         Vec3d target = new Vec3d(x, y, z);
         int elapsed = (int) Math.max(1, tick - state.lastMoveTick);
         boolean tooFast = MotionEnvelope.exceeds(player.getPos(), target, player.getVelocity(), elapsed,
@@ -151,10 +155,16 @@ public final class ViolationManager {
                 state.lastMoveTick = tick;
                 return true;
             }
+            if (++state.moveViolationStreak < cfg.movement.consecutiveMoveViolations) {
+                state.lastMoveTick = tick;
+                return true;
+            }
+            state.moveViolationStreak = 0;
             violation(player, state, clips ? CheckType.PHASE : CheckType.MOVE_SPEED,
                     clips ? "target collides with solid shape" : "movement exceeds conservative envelope", 3, true);
             return false;
         }
+        state.moveViolationStreak = 0;
         if (!cfg.movement.timerEnabled) {
             state.timerOverBudgetTicks = 0;
             state.lastMoveTick = tick;
@@ -309,8 +319,17 @@ public final class ViolationManager {
         if (tick < state.exemptUntilTick || player.isSpectator() || player.isCreative() || player.getAbilities().allowFlying
                 || player.getAbilities().flying || player.hasVehicle() || player.isFallFlying()) return true;
         if (player.isTouchingWater() || player.isClimbing() || player.hasStatusEffect(StatusEffects.LEVITATION) || player.hasStatusEffect(StatusEffects.SLOW_FALLING)) return true;
-        if (player.getVelocity().lengthSquared() > 1.0) return true; // explosions, pistons, slime launchers and strong knockback.
+        int externalGraceTicks = Math.max(40, config.get().movement.transitionGraceTicks * 2);
+        if (player.getVelocity().lengthSquared() > 0.16 || isLaunchSurface(player)) {
+            state.externalMovementGraceUntilTick = Math.max(state.externalMovementGraceUntilTick, tick + externalGraceTicks);
+        }
+        if (tick < state.externalMovementGraceUntilTick) return true; // explosions, pistons, slime launchers and strong knockback.
         return false;
+    }
+    private static boolean isLaunchSurface(ServerPlayerEntity player) {
+        BlockPos belowFeet = BlockPos.ofFloored(player.getX(), player.getY() - 0.2, player.getZ());
+        var state = player.getWorld().getBlockState(belowFeet);
+        return state.isOf(net.minecraft.block.Blocks.SLIME_BLOCK) || state.isOf(net.minecraft.block.Blocks.HONEY_BLOCK);
     }
     private void checkFlight(ServerPlayerEntity player, PlayerState state) {
         // This path is only reached for survival players without Fuji/vanilla flight, vehicle,

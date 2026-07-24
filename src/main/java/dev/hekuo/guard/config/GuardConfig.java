@@ -55,8 +55,8 @@ public final class GuardConfig {
 
         void validate() throws IOException {
             if (movement == null || combat == null || packets == null || enforcement == null || logging == null || updater == null || clientDetection == null || clientDetection.secureHandshake == null) throw new IOException("missing configuration section");
-            if (movement.maxHorizontalPerTick <= 0 || movement.maxCumulativeHorizontalPerTick <= 0 || movement.maxVerticalPerTick <= 0 || movement.maxCoordinate <= 0 || movement.packetBurstGraceMillis < 0 || movement.timerConsecutiveTicks < 1 || movement.joinGraceSeconds < 0 || movement.flightAirTicks < 20 || movement.waterWalkTicks < 20) throw new IOException("movement limits must be positive");
-            if (combat.reachTolerance < 0 || combat.invulnerabilityTicks < 20 || packets.movePacketsPerSecond < 1 || packets.attackPacketsPerSecond < 1 || packets.interactPacketsPerSecond < 1) throw new IOException("packet limits and reach tolerance are invalid");
+            if (movement.maxHorizontalPerTick <= 0 || movement.maxCumulativeHorizontalPerTick <= 0 || movement.maxVerticalPerTick <= 0 || movement.maxCoordinate <= 0 || movement.packetBurstGraceMillis < 0 || movement.timerConsecutiveTicks < 1 || movement.consecutiveMoveViolations < 1 || movement.joinGraceSeconds < 0 || movement.flightAirTicks < 20 || movement.waterWalkTicks < 20) throw new IOException("movement limits must be positive");
+            if (combat.reachTolerance < 0 || combat.invulnerabilityTicks < 20 || packets.movePacketsPerSecond < 1 || packets.moveFloodStrikes < 1 || packets.attackPacketsPerSecond < 1 || packets.interactPacketsPerSecond < 1) throw new IOException("packet limits and reach tolerance are invalid");
             if (enforcement.alertAt < 1 || enforcement.kickAt <= enforcement.alertAt || enforcement.decaySeconds < 1) throw new IOException("enforcement thresholds are invalid");
             if (enforcement.banBaseSeconds < 1 || enforcement.fastScoreWindowSeconds < 1 || enforcement.fastScoreThreshold < 1 || enforcement.permanentBanLevel < 2) throw new IOException("ban settings are invalid");
             if (clientDetection.secureHandshake.timeoutSeconds < 1 || clientDetection.secureHandshake.timeoutSeconds > 120) throw new IOException("secure handshake timeout must be between 1 and 120 seconds");
@@ -78,6 +78,8 @@ public final class GuardConfig {
         public int timerConsecutiveTicks = 3;
         /** A delayed packet burst receives grace instead of an immediate speed violation. */
         public int packetBurstGraceMillis = 250;
+        /** Consecutive abnormal move packets required before a speed/phase score or setback. */
+        public int consecutiveMoveViolations = 3;
         public double maxVerticalPerTick = 1.25;
         public double maxCoordinate = 29_999_984.0;
         public int safeTicks = 5;
@@ -100,7 +102,10 @@ public final class GuardConfig {
 
     public static final class Packets {
         public boolean enabled = true;
-        public int movePacketsPerSecond = 100;
+        /** Vanilla look updates can be frequent; leave generous room before treating packets as a flood. */
+        public int movePacketsPerSecond = 250;
+        /** Consecutive packets rejected by the rate bucket before a flood is scored. */
+        public int moveFloodStrikes = 3;
         public int attackPacketsPerSecond = 40;
         public int interactPacketsPerSecond = 80;
         public int burstMultiplier = 2;

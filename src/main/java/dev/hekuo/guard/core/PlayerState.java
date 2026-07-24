@@ -28,6 +28,9 @@ final class PlayerState {
     double horizontalDistanceThisTick;
     long lastMovePacketNanos;
     int timerOverBudgetTicks;
+    int moveViolationStreak;
+    int moveFloodStreak;
+    long externalMovementGraceUntilTick;
     TokenBucket moveBucket;
     TokenBucket attackBucket;
     TokenBucket interactBucket;
